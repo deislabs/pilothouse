@@ -1,0 +1,19 @@
+[package]
+name = "rust-helm"
+version = "0.1.0"
+authors = ["Taylor Thomas <taylor.thomas@microsoft.com>"]
+edition = "2018"
+description="a Rust port of the Helm client library"
+
+[dependencies]
+kube = { version = "0.17.0", features = ["openapi"] }
+k8s-openapi = { version = "0.6.0", default-features = false, features = ["v1_15"] }
+serde = "1.0"
+serde_json = "1.0"
+serde_yaml = "0.8"
+chrono = { version = "0.4", features = ["serde"] }
+log = "0.4"
+env_logger = "0.6"
+failure = "0.1"
+base64 = "0.10"
+flate2 = "1.0"
