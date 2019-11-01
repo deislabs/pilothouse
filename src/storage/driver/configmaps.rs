@@ -1,6 +1,6 @@
 use crate::release::Release;
 use crate::storage::driver::*;
-use std::collections::HashMap;
+use std::collections::{HashMap, BTreeMap};
 use std::vec::Vec;
 use kube::api::{Api, v1ConfigMap, ListParams, PostParams, PatchParams, DeleteParams};
 use kube::client::APIClient;
@@ -28,12 +28,21 @@ impl ConfigMaps {
         let mut release_list: Vec<Release> = Vec::with_capacity(res.items.len());
         while let Some(cm) = res.items.pop() {
             // TODO: Change decoding errors to just log to match Helm behavior
-            let rel = decode_release(cm.data)?;
+            let rel = decode_release(ConfigMaps::get_raw_data(cm.data)?)?;
             if filter(&rel) {
                 release_list.push(rel);
             }
         }
         Ok(release_list)
+    }
+
+    fn get_raw_data(data: BTreeMap<String, String>) -> Result<Vec<u8>, DriverError> {
+        let raw = match data.get("release") {
+            Some(b) => b,
+            None => { return Err(DriverError::InvalidData{message: "no 'release' key found".to_string()}) }
+        };
+
+        Ok(base64::decode(raw)?)
     }
 
     fn generate_cm_data(key: &String, rel: Release, addl_labels: HashMap<String, String>) -> Result<Vec<u8>, DriverError> {
@@ -84,8 +93,8 @@ impl Driver for ConfigMaps {
         Ok(rel)
     }
     fn get(&self, key: &String) -> Result<Release, DriverError> {
-        let sec = self.client.get(key)?;
-        let rel = decode_release(sec.data)?;
+        let cm = self.client.get(key)?;
+        let rel = decode_release(ConfigMaps::get_raw_data(cm.data)?)?;
         Ok(rel)
     }
     fn list<F>(&self, filter: F) -> Result<Vec<Release>, DriverError> 

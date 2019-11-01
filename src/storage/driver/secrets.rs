@@ -1,9 +1,10 @@
 use crate::release::Release;
 use crate::storage::driver::*;
-use std::collections::HashMap;
+use std::collections::{HashMap, BTreeMap};
 use std::vec::Vec;
 use kube::api::{Api, v1Secret, ListParams, PostParams, PatchParams, DeleteParams};
 use kube::client::APIClient;
+use k8s_openapi::ByteString;
 
 pub struct Secrets {
     client: Api<v1Secret>,
@@ -28,12 +29,20 @@ impl Secrets {
         let mut release_list: Vec<Release> = Vec::with_capacity(res.items.len());
         while let Some(sec) = res.items.pop() {
             // TODO: Change decoding errors to just log to match Helm behavior
-            let rel = decode_release(sec.data)?;
+            let rel = decode_release(Secrets::get_raw_data(sec.data)?)?;
             if filter(&rel) {
                 release_list.push(rel);
             }
         }
         Ok(release_list)
+    }
+    
+    fn get_raw_data(data: BTreeMap<String, ByteString>) -> Result<Vec<u8>, DriverError> {
+        let raw = match data.get("release") {
+            Some(b) => b,
+            None => { return Err(DriverError::InvalidData{message: "no 'release' key found".to_string()}) }
+        };
+        Ok(raw.0.clone())
     }
 
     fn generate_secret_data(key: &String, rel: Release, addl_labels: HashMap<String, String>) -> Result<Vec<u8>, DriverError> {
@@ -95,7 +104,7 @@ impl Driver for Secrets {
     }
     fn get(&self, key: &String) -> Result<Release, DriverError> {
         let sec = self.client.get(key)?;
-        let rel = decode_release(sec.data)?;
+        let rel = decode_release(Secrets::get_raw_data(sec.data)?)?;
         Ok(rel)
     }
     fn list<F>(&self, filter: F) -> Result<Vec<Release>, DriverError> 

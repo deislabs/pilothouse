@@ -2,10 +2,9 @@ pub mod secrets;
 pub mod configmaps;
 
 use crate::release::Release;
-use std::collections::{HashMap, BTreeMap};
+use std::collections::HashMap;
 use std::vec::Vec;
 use std::error::Error;
-use k8s_openapi::ByteString;
 use flate2::write::{GzEncoder, GzDecoder};
 use flate2::Compression;
 use std::io::prelude::*;
@@ -91,37 +90,9 @@ pub trait Driver {
     fn query(&self, labels: HashMap<String, String>) -> Result<Vec<Release>, DriverError>;
 }
 
-struct ByteWrapper(Vec<u8>);
-
-impl From<&ByteString> for ByteWrapper {
-    fn from(bs: &ByteString) -> Self {
-        ByteWrapper(bs.0.clone())
-    }
-}
-
-impl From<&String> for ByteWrapper {
-    fn from(s: &String) -> Self {
-        ByteWrapper(s.clone().into_bytes())
-    }
-}
-
-fn decode_release<T>(data: BTreeMap<String, T>) -> Result<Release, DriverError>
-where
-    for<'a> &'a T: Into<ByteWrapper>,
-{
-    let raw: ByteWrapper = match data.get("release") {
-        Some(data) => data.into(),
-        None => { return Err(DriverError::InvalidData{message: "no 'release' key found".to_string()}) }
-    };
-    return decode(&raw.0);
-}
-
-fn decode(raw: &Vec<u8>) -> Result<Release, DriverError> {
-    // NOTE: the ByteString data returned already has any base64 data decoded
-    // TODO: Figure out if the same is true for configmaps. If it is different,
-    // we'll have to accept a simple byte vector instead for this function
+fn decode_release(raw: Vec<u8>) -> Result<Release, DriverError> {
     let mut decoder = GzDecoder::new(Vec::new());
-    decoder.write_all(raw)?;
+    decoder.write_all(&raw)?;
     let buffer = decoder.finish()?;
     let rel: Release = serde_json::from_slice(&buffer)?;
     Ok(rel)
