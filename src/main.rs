@@ -9,6 +9,7 @@ extern crate k8s_openapi;
 extern crate failure;
 extern crate base64;
 extern crate serde_yaml;
+extern crate log;
 #[macro_use]
 extern crate serde_json;
 extern crate flate2;
@@ -20,14 +21,15 @@ use kube::config;
 use kube::client::APIClient;
 use std::collections::HashMap;
 use serde_json::Value;
-use storage::driver::Driver;
+use log::{info, debug, error};
+use storage::{Storage, MaxHistory};
 
 fn main() {
     env_logger::init();
     let config = config::load_kube_config().expect("failed to load kubeconfig");
     let client = APIClient::new(config);
 
-    let sec = Secrets::new(client.clone(), "default".to_string());
+    let store = Storage::new(Secrets::new(client.clone(), "default".to_string()), MaxHistory::NoLimit);
     let name = "hello".to_string();
     let mut values: HashMap<String, Value> = HashMap::new();
     values.insert("foo".into(), "bar".into());
@@ -41,26 +43,37 @@ fn main() {
     };
 
     // Create secret example
-    sec.create(&name, rel).unwrap();
+    store.create(rel).unwrap();
 
-    let mut updated_rel = sec.get(&name).unwrap();
+    let mut updated_rel = store.get(&name, &1).unwrap();
     println!("{:?}", updated_rel);
 
     // Update secret example
-    updated_rel.version = 2;
     updated_rel.manifest = "kind: Blah\napiVersion:bar".into();
 
-    sec.update(&name, updated_rel).unwrap();
+    store.update(updated_rel).unwrap();
 
-    let updated_rel = sec.get(&name).unwrap();
+    let mut updated_rel = store.get(&name, &1).unwrap();
     println!("{:?}", updated_rel);
 
-    // Delete secret example
-    let rel = sec.delete(&name).unwrap();
+    // new release secret example
+    updated_rel.version = 2;
+    updated_rel.manifest = "kind: Last\napiVersion:bar".into();
+
+    store.create(updated_rel).unwrap();
+
+    let updated_rel = store.get(&name, &1).unwrap();
+    println!("{:?}", updated_rel);
+
+    // Delete secrets example
+    let rel = store.delete(&name, &updated_rel.version).unwrap();
     println!("{:?}", rel);
 
-    
-    let cm = ConfigMaps::new(client.clone(), "default".to_string());
+    let rel = store.delete(&name, &2).unwrap();
+    println!("{:?}", rel);
+
+    // ConfigMap examples
+    let store = Storage::new(ConfigMaps::new(client.clone(), "default".to_string()), MaxHistory::NoLimit);
     let name = "hello".to_string();
     let mut values: HashMap<String, Value> = HashMap::new();
     values.insert("foo".into(), "bar".into());
@@ -74,21 +87,32 @@ fn main() {
     };
 
     // Create ConfigMap example
-    cm.create(&name, rel).unwrap();
+    store.create(rel).unwrap();
 
-    let mut updated_rel = cm.get(&name).unwrap();
+    let mut updated_rel = store.get(&name, &1).unwrap();
     println!("{:?}", updated_rel);
 
-    // Update ConfigMap example
-    updated_rel.version = 2;
+    // Update configmap example
     updated_rel.manifest = "kind: Blah\napiVersion:bar".into();
 
-    cm.update(&name, updated_rel).unwrap();
+    store.update(updated_rel).unwrap();
 
-    let updated_rel = cm.get(&name).unwrap();
+    let mut updated_rel = store.get(&name, &1).unwrap();
     println!("{:?}", updated_rel);
 
-    // Delete ConfigMap example
-    let rel = cm.delete(&name).unwrap();
+    // new release configmap example
+    updated_rel.version = 2;
+    updated_rel.manifest = "kind: Last\napiVersion:bar".into();
+
+    store.create(updated_rel).unwrap();
+
+    let updated_rel = store.get(&name, &2).unwrap();
+    println!("{:?}", updated_rel);
+
+    // Delete configmaps example
+    let rel = store.delete(&name, &updated_rel.version).unwrap();
+    println!("{:?}", rel);
+
+    let rel = store.delete(&name, &1).unwrap();
     println!("{:?}", rel);
 }
