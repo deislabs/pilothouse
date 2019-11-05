@@ -1,3 +1,5 @@
+pub mod sort;
+
 use serde::{Serialize, Deserialize};
 use chrono::{DateTime, Utc};
 use std::collections::HashMap;
@@ -13,7 +15,7 @@ pub struct Release {
     pub config: HashMap<String, Value>,
     pub manifest: String,
     // TODO: hooks
-    pub version: u64,
+    pub version: usize,
     pub namespace: String,
 }
 
@@ -35,7 +37,7 @@ pub struct Info {
     pub notes: String,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub enum Status {
     Unknown,
     Deployed,
@@ -51,5 +53,23 @@ pub enum Status {
 impl Default for Status {
     fn default() -> Self {
         Status::Unknown
+    }
+}
+
+// We need to implement Display to match what the current Go statuses are and
+// have a `to_string` method for label queries
+impl std::fmt::Display for Status {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Status::Unknown => write!(f, "unknown"),
+            Status::Deployed => write!(f, "deployed"),
+            Status::Uninstalled => write!(f, "uninstalled"),
+            Status::Superseded => write!(f, "superseded"),
+            Status::Failed => write!(f, "failed"),
+            Status::Uninstalling => write!(f, "uninstalling"),
+            Status::PendingInstall => write!(f, "pending-install"),
+            Status::PendingUpgrade => write!(f, "pending-upgrade"),
+            Status::PendingRollback => write!(f, "pending-rollback"),
+        }
     }
 }
