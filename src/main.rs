@@ -1,9 +1,10 @@
 mod storage;
 mod release;
+mod kube;
 
 extern crate chrono;
 extern crate env_logger;
-extern crate kube;
+extern crate kube as external_kube;
 extern crate k8s_openapi;
 #[macro_use]
 extern crate failure;
@@ -13,16 +14,18 @@ extern crate log;
 #[macro_use]
 extern crate serde_json;
 extern crate flate2;
+extern crate reqwest;
 
 use storage::driver::secrets::Secrets;
 use storage::driver::configmaps::ConfigMaps;
 use release::Release;
-use kube::config;
-use kube::client::APIClient;
+use external_kube::config;
+use external_kube::client::APIClient;
 use std::collections::HashMap;
 use serde_json::Value;
 use log::{info, debug, error};
 use storage::{Storage, MaxHistory};
+use crate::kube::client::Client;
 
 fn main() {
     env_logger::init();
